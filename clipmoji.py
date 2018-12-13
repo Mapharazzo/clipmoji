@@ -1,7 +1,6 @@
 import emoji
 import pyperclip
-import pynput
-from pynput.keyboard import Key, Listener, Controller
+from pynput.keyboard import Key, KeyCode, Listener, Controller
 from string import printable
 from threading import Timer
 
@@ -35,7 +34,8 @@ DICT_SPECIAL = {'`': '~',
 
 class Clipmoji:
     def __init__(self):
-        self.listener = Listener(on_press=self.on_press, on_release=self.on_release)
+        self.listener = Listener(
+            on_press=self.on_press, on_release=self.on_release)
         self.controller = Controller()
         self.state = False
         self._shift = False
@@ -63,7 +63,7 @@ class Clipmoji:
                 self._current.clear()
                 self.state = not self.state
         if self.state:
-            if type(key) == pynput.keyboard.KeyCode and key.char in set(printable):
+            if type(key) == KeyCode and key.char in set(printable):
                 if self._shift and key.char in DICT_SPECIAL.keys():
                     self.captured += DICT_SPECIAL[key.char]
                 elif self._shift:
@@ -104,6 +104,7 @@ class Clipmoji:
         self.controller.press('v')
         self.controller.release('v')
         self.controller.release(Key.ctrl)
+
 
 clipmojy = Clipmoji()
 clipmojy.listener.start()
