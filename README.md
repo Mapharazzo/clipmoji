@@ -12,7 +12,7 @@ again, and 💥: your emoji is right there, for you to happily send. You're welc
 
 - [ ] MAKE THE DAMN THING LISTEN FOR JUST `CTRL + ALT`, NOT `CTRL + ALT + L` BECAUSE IT FUCKING DELETES MY CODE WHEN I TRY TO REFORMAT IT
 - [ ] Refactor the code to be more easily understood
-- [ ] Remove the `emoji` dependence
+- [ ] Remove the `emoji` dependency
 - [ ] Add all emojis from https://unicode.org/emoji/charts/full-emoji-list.html
 - [ ] Decide for a faster way to input emojis
 - [ ] Add support for user-defined emojis (new ones or combinations)
