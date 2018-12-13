@@ -1,111 +1,115 @@
-import emoji
-import pyperclip
-from pynput.keyboard import Key, KeyCode, Listener, Controller
 from string import printable
 from threading import Timer
 
+from pynput.keyboard import Key, KeyCode, Listener, Controller
+import emoji
+import pyperclip
 
-# listens to keys until combination
-# state = 0 - dont keep track
-# state = 1 - keep the keystrokes
-
-DICT_SPECIAL = {'`': '~',
-                '1': '!',
-                '2': '@',
-                '3': '#',
-                '4': '$',
-                '5': '%',
-                '6': '^',
-                '7': '&',
-                '8': '*',
-                '9': '(',
-                '0': ')',
-                '-': '_',
-                '=': '+',
-                '[': '{',
-                ']': '}',
-                '\\': '|',
-                ';': ':',
-                "'": '"',
-                ',': '<',
-                '.': '>',
-                '/': '?'}
+DICT_SPECIAL = {
+    '`': '~',
+    '1': '!',
+    '2': '@',
+    '3': '#',
+    '4': '$',
+    '5': '%',
+    '6': '^',
+    '7': '&',
+    '8': '*',
+    '9': '(',
+    '0': ')',
+    '-': '_',
+    '=': '+',
+    '[': '{',
+    ']': '}',
+    '\\': '|',
+    ';': ':',
+    "'": '"',
+    ',': '<',
+    '.': '>',
+    '/': '?'
+}
 
 
 class Clipmoji:
     def __init__(self):
         self.listener = Listener(
-            on_press=self.on_press, on_release=self.on_release)
+            on_press=self.on_press,
+            on_release=self.on_release
+        )
         self.controller = Controller()
-        self.state = False
-        self._shift = False
+
+        self.trigger_shortcuts = set([
+            (Key.ctrl_l, Key.alt_l),
+            (Key.ctrl_r, Key.alt_r)
+        ])
+        self.shortcut_to_exact_match_mapping = dict([
+            (shortcut, False) for shortcut in self.trigger_shortcuts
+        ])
+
+        self.keys_pressed = []
+        self.is_recording = False
+
+        self.keys_captured = ''
+
+        # TODO: da fuck is dis Andrei?
         self._aux_backspace = False
-        self.captured = ''
-        self._combination = {Key.ctrl_l, Key.alt_l}
-        self._special = {Key.ctrl_l, Key.alt_l, Key.shift}
-        self._quit_combination = {Key.ctrl_l, Key.alt_l, Key.shift}
-        self._current = set()
 
     def on_press(self, key):
-        # print(key, self.state, self._current)
-        # print(self.captured)
-        if key == Key.shift or key == Key.shift_r:
-            self._shift = True
-        if key in self._combination:
-            self._current.add(key)
-            if all(k in self._current for k in self._combination):
-                if self.state:
-                    self.copy_to_clipboard(self.emojify_captured())
-                    self.captured = ''
-                    r = Timer(0.3, self.paste_to_cursor)
-                    r.start()
+        if key not in self.keys_pressed:
+            self.keys_pressed.append(key)
 
-                self._current.clear()
-                self.state = not self.state
-        if self.state:
+        keys_pressed = tuple(self.keys_pressed)
+        for shortcut in self.shortcut_to_exact_match_mapping.keys():
+            self.shortcut_to_exact_match_mapping.update({
+                shortcut: shortcut == keys_pressed
+            })
+
+        if self.is_recording:
             if type(key) == KeyCode and key.char in set(printable):
-                if self._shift and key.char in DICT_SPECIAL.keys():
-                    self.captured += DICT_SPECIAL[key.char]
-                elif self._shift:
-                    self.captured += key.char.upper()
+                if self.is_shift_pressed(key) and key.char in DICT_SPECIAL.keys():
+                    self.keys_captured += DICT_SPECIAL[key.char]
+                elif self.is_shift_pressed(key):
+                    self.keys_captured += key.char.upper()
                 else:
-                    self.captured += key.char
+                    self.keys_captured += key.char
                 self._aux_backspace = True
                 self.controller.press(Key.backspace)
+                self.controller.release(Key.backspace)
             elif key == Key.backspace:
                 if not self._aux_backspace:
-                    self.captured = self.captured[:-1]
+                    self.keys_captured = self.keys_captured[:-1]
                 else:
                     self._aux_backspace = False
             elif key == Key.space:
-                self.captured += ' '
+                self.keys_captured += ' '
                 self._aux_backspace = True
                 self.controller.press(Key.backspace)
+                self.controller.release(Key.backspace)
+
+    def is_shift_pressed(self, key):
+        return Key.shift_l in self.keys_pressed or Key.shift_r in self.keys_pressed
 
     def on_release(self, key):
-        if key == Key.shift or key == Key.shift_r:
-            self._shift = False
-        if key in self._combination and key in self._current:
-            self._current.remove(key)
+        for shortcut, is_exact_match in self.shortcut_to_exact_match_mapping.items():
+            if shortcut in self.trigger_shortcuts and is_exact_match:
+                if self.is_recording:
+                    emojified = emoji.emojize(self.keys_captured)
+                    pyperclip.copy(emojified)
 
-    def get_captured(self):
-        return self.captured
+                    self.keys_captured = ''
 
-    def emojify_captured(self, copy=True):
-        emojify = emoji.emojize(self.captured)
-        pyperclip.copy(emojify)
-        return emojify
+                    timer = Timer(0.3, self.paste_to_cursor)
+                    timer.start()
 
-    def copy_to_clipboard(self, text):
-        pyperclip.copy(text)
+                self.shortcut_to_exact_match_mapping.update({
+                    shortcut: False
+                })
+                self.is_recording = not self.is_recording
+
+        if key in self.keys_pressed:
+            self.keys_pressed.remove(key)
 
     def paste_to_cursor(self):
-        self.controller.press(Key.ctrl)
-        self.controller.press('v')
-        self.controller.release('v')
-        self.controller.release(Key.ctrl)
-
-
-clipmojy = Clipmoji()
-clipmojy.listener.start()
-clipmojy.listener.join()
+        with self.controller.pressed(Key.ctrl):
+            self.controller.press('v')
+            self.controller.release('v')
